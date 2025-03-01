@@ -33,7 +33,7 @@ export default defineConfig({
 
       injectClientScript: false,
     }),
-    vike({}),
+    vike({ prerender: true }),
     vikeSolid(),
     tailwindcss(),
   ],
