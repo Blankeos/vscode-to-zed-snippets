@@ -1,15 +1,25 @@
 import { convertVSCodeToZedSnippets } from "@/utils/convert-vscode-to-zed-snippets";
 import { debounce } from "@/utils/debounce";
-import { createSignal, For, Show } from "solid-js";
+import { createEffect, createSignal, For, Show } from "solid-js";
 import { useMetadata } from "vike-metadata-solid";
+
+import { IconGitHub } from "@/assets";
+import { useClipboard, useLocalStorage } from "bagon-hooks";
 
 export default function Page() {
   useMetadata({});
 
-  const [vsCodeSnippet, setVSCodeSnippet] = createSignal("");
+  const [vsCodeSnippet, setVSCodeSnippet] = useLocalStorage({
+    key: "vscode-snippet-input",
+    defaultValue: "",
+  });
   const [activeTab, setActiveTab] = createSignal(0);
   const [convertedSnippets, setConvertedSnippets] = createSignal([]);
   const [hasError, setHasError] = createSignal(false);
+
+  const { copied, copy } = useClipboard({
+    timeout: 1000,
+  });
 
   const debouncedConvert = debounce((snippetText: string) => {
     try {
@@ -27,8 +37,21 @@ export default function Page() {
     }
   }, 500);
 
+  createEffect(() => {
+    debouncedConvert(vsCodeSnippet());
+  });
+
   return (
-    <div class="flex h-[100vh] gap-4 p-4">
+    <div class="flex h-[100vh] gap-4 p-4 relative">
+      <a
+        class="fixed top-2 right-2 p-2 text-gray-400 hover:text-gray-600 text-xs flex items-center gap-x-2"
+        href="https://github.com/blankeos/vscode-to-zed-snippets"
+        target="_blank"
+      >
+        <IconGitHub class="w-4 h-4" />
+        <span>source</span>
+      </a>
+
       <div class="flex flex-1 flex-col">
         <h2 class="text-sm font-bold mb-2">VSCode Snippet</h2>
         <textarea
@@ -37,7 +60,6 @@ export default function Page() {
           onInput={(e) => {
             const newValue = e.currentTarget.value;
             setVSCodeSnippet(newValue);
-            debouncedConvert(newValue);
           }}
           placeholder="Paste your VSCode snippet here..."
         />
@@ -74,12 +96,20 @@ export default function Page() {
               )}
             </For>
           </div>
-          <textarea
-            class="flex-1 w-full rounded border p-4 font-mono text-xs"
-            value={convertedSnippets()[activeTab()].content}
-            readOnly
-            placeholder="Converted snippet will appear here..."
-          />
+          <div class="relative w-full h-full">
+            <textarea
+              class="flex-1 w-full rounded border p-4 font-mono text-xs h-full"
+              value={convertedSnippets()[activeTab()].content}
+              readOnly
+              placeholder="Converted snippet will appear here..."
+            />
+            <button
+              onClick={() => copy(convertedSnippets()[activeTab()].content)}
+              class="absolute top-2 right-2 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded"
+            >
+              {copied() ? "Copied!" : "Copy"}
+            </button>
+          </div>
         </Show>
       </div>
     </div>
