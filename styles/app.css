@@ -5,3 +5,11 @@
 :root {
   font-family: "IBM Plex Mono";
 }
+
+@layer base {
+  button {
+    @apply cursor-pointer;
+  }
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
