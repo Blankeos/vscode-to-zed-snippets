@@ -27,8 +27,12 @@
     "vite": "^6.2.0"
   },
   "dependencies": {
+    "@codemirror/state": "^6.5.2",
+    "@codemirror/view": "^6.36.4",
+    "@shopify/lang-jsonc": "^1.0.1",
     "@tailwindcss/vite": "^4.0.9",
     "bagon-hooks": "^0.0.4",
+    "codemirror": "^6.0.1",
     "hono": "^4.7.2",
     "jsonc-parser": "^3.3.1",
     "solid-js": "^1.9.5",
