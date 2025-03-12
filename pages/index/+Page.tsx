@@ -3,7 +3,7 @@ import { debounce } from "@/utils/debounce";
 import { createEffect, createSignal, For, Show } from "solid-js";
 import { useMetadata } from "vike-metadata-solid";
 
-import { IconGitHub } from "@/assets";
+import { IconGitHub, IconVSCode, IconZed } from "@/assets";
 import { useClipboard, useLocalStorage } from "bagon-hooks";
 
 export default function Page() {
@@ -83,7 +83,9 @@ export default function Page() {
       </button>
 
       <div class="flex flex-1 flex-col">
-        <h2 class="text-sm font-bold mb-2">VSCode Snippet</h2>
+        <h2 class="text-sm font-bold mb-2 flex items-center gap-x-2">
+          <IconVSCode class="w-3.5 h-3.5" /> VSCode Snippet
+        </h2>
         <textarea
           class={`flex-1 w-full rounded border p-4 font-mono text-xs ${
             isDarkMode()
@@ -100,7 +102,9 @@ export default function Page() {
       </div>
 
       <div class="flex flex-1 flex-col">
-        <h2 class="text-sm font-bold mb-2">Zed Snippet</h2>
+        <h2 class="text-sm font-bold mb-2 flex items-center gap-x-2">
+          <IconZed class="w-3.5 h-3.5" /> Zed Snippet
+        </h2>
         <Show
           when={convertedSnippets().length > 0}
           fallback={
