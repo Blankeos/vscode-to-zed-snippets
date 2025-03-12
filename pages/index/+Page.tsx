@@ -9,8 +9,10 @@ import { useClipboard, useLocalStorage } from "bagon-hooks";
 // CodeMirror imports
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { jsonc } from "@shopify/lang-jsonc";
 import { basicSetup } from "codemirror";
+
+// Create a variable to store jsonc
+let jsonc: any;
 
 export default function Page() {
   useMetadata({});
@@ -160,7 +162,10 @@ export default function Page() {
     zedEditorView.setState(newState);
   };
 
-  onMount(() => {
+  onMount(async () => {
+    const _import = await import("@shopify/lang-jsonc");
+    jsonc = _import.jsonc;
+
     if (typeof window !== "undefined") {
       initVSCodeEditor();
       if (convertedSnippets().length > 0) {
