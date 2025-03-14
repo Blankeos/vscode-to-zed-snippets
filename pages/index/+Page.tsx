@@ -1,14 +1,23 @@
 import { convertVSCodeToZedSnippets } from "@/utils/convert-vscode-to-zed-snippets";
 import { debounce } from "@/utils/debounce";
-import { createEffect, createSignal, For, Show } from "solid-js";
+import { createEffect, createSignal, For, Match, onCleanup, onMount, Show, Switch } from "solid-js";
 import { useMetadata } from "vike-metadata-solid";
 
 import { IconGitHub, IconVSCode, IconZed } from "@/assets";
 import { useClipboard, useLocalStorage } from "bagon-hooks";
 
+// CodeMirror imports
+import { EditorState } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
+import { basicSetup } from "codemirror";
+
+// Create a variable to store jsonc
+let jsonc: any;
+
 export default function Page() {
   useMetadata({});
 
+  const [mounted, setMounted] = createSignal(false);
   const [vsCodeSnippet, setVSCodeSnippet] = useLocalStorage({
     key: "vscode-snippet-input",
     defaultValue: "",
@@ -30,6 +39,14 @@ export default function Page() {
     timeout: 1000,
   });
 
+  // References for CodeMirror elements
+  let vsCodeEditorContainer: HTMLDivElement | undefined;
+  let zedEditorContainer: HTMLDivElement | undefined;
+
+  // References for editor views
+  let vsCodeEditorView: EditorView | undefined;
+  let zedEditorView: EditorView | undefined;
+
   const debouncedConvert = debounce((snippetText: string) => {
     try {
       const converted = convertVSCodeToZedSnippets(snippetText);
@@ -40,21 +57,183 @@ export default function Page() {
         }))
       );
       setHasError(false);
+
+      // Update zed editor content if initialized
+      if (zedEditorView && convertedSnippets().length > 0) {
+        updateZedEditor();
+      }
     } catch (error) {
       console.error("Failed to convert snippet:", error);
       setHasError(true);
     }
   }, 500);
 
-  createEffect(() => {
-    debouncedConvert(vsCodeSnippet());
+  // Theme extension for CodeMirror
+  const createThemeExtension = (isDark: boolean) => {
+    return EditorView.theme({
+      "&": {
+        height: "100%",
+        fontSize: "12px",
+      },
+      ".cm-content": {
+        fontFamily: "monospace",
+        caretColor: isDark ? "#fff" : "#000",
+      },
+      ".cm-gutters": {
+        backgroundColor: isDark ? "#1f2937" : "#f3f4f6",
+        color: isDark ? "#9ca3af" : "#6b7280",
+        border: "none",
+      },
+      ".cm-scroller": {
+        overflow: "auto",
+        height: "100%",
+      },
+      ".cm-line": {
+        padding: "0 4px",
+      },
+      "&.cm-focused .cm-cursor": {
+        borderLeftColor: isDark ? "#fff" : "#000",
+      },
+      "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": {
+        backgroundColor: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)",
+      },
+      ".cm-activeLine": {
+        backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)",
+      },
+    });
+  };
+
+  // Initialize VSCode editor
+  const initVSCodeEditor = () => {
+    if (!vsCodeEditorContainer) return;
+
+    vsCodeEditorView = new EditorView({
+      state: EditorState.create({
+        doc: vsCodeSnippet(),
+        extensions: [
+          basicSetup,
+          jsonc(),
+          createThemeExtension(isDarkMode()),
+          EditorView.updateListener.of((update) => {
+            if (update.docChanged) {
+              const newValue = update.state.doc.toString();
+              setVSCodeSnippet(newValue);
+              debouncedConvert(newValue);
+            }
+          }),
+        ],
+      }),
+      parent: vsCodeEditorContainer,
+    });
+  };
+
+  // Initialize Zed editor
+  const initZedEditor = () => {
+    if (!zedEditorContainer || convertedSnippets().length === 0) return;
+
+    zedEditorView = new EditorView({
+      state: EditorState.create({
+        doc: convertedSnippets()[activeTab()].content,
+        extensions: [
+          basicSetup,
+          jsonc(),
+          createThemeExtension(isDarkMode()),
+          EditorState.readOnly.of(true),
+        ],
+      }),
+      parent: zedEditorContainer,
+    });
+  };
+
+  // Update Zed editor content when tab changes or content changes
+  const updateZedEditor = () => {
+    if (!zedEditorView || convertedSnippets().length === 0) return;
+
+    const newState = EditorState.create({
+      doc: convertedSnippets()[activeTab()].content,
+      extensions: [
+        basicSetup,
+        jsonc(),
+        createThemeExtension(isDarkMode()),
+        EditorState.readOnly.of(true),
+      ],
+    });
+
+    zedEditorView.setState(newState);
+  };
+
+  onMount(async () => {
+    const _import = await import("@shopify/lang-jsonc");
+    jsonc = _import.jsonc;
+
+    if (typeof window !== "undefined") {
+      initVSCodeEditor();
+      if (convertedSnippets().length > 0) {
+        initZedEditor();
+      }
+      debouncedConvert(vsCodeSnippet());
+    }
+    setMounted(true);
+  });
+
+  onCleanup(() => {
+    vsCodeEditorView?.destroy();
+    zedEditorView?.destroy();
   });
 
   createEffect(() => {
+    // Update theme when dark mode changes
+    if (vsCodeEditorView) {
+      const newState = EditorState.create({
+        doc: vsCodeEditorView.state.doc,
+        extensions: [
+          basicSetup,
+          jsonc(),
+          createThemeExtension(isDarkMode()),
+          EditorView.updateListener.of((update) => {
+            if (update.docChanged) {
+              const newValue = update.state.doc.toString();
+              setVSCodeSnippet(newValue);
+              debouncedConvert(newValue);
+            }
+          }),
+        ],
+      });
+      vsCodeEditorView.setState(newState);
+    }
+
+    if (zedEditorView && convertedSnippets().length > 0) {
+      const newState = EditorState.create({
+        doc: convertedSnippets()[activeTab()].content,
+        extensions: [
+          basicSetup,
+          jsonc(),
+          createThemeExtension(isDarkMode()),
+          EditorState.readOnly.of(true),
+        ],
+      });
+      zedEditorView.setState(newState);
+    }
+
     if (isDarkMode()) {
       document.documentElement.classList.add("dark");
     } else {
       document.documentElement.classList.remove("dark");
+    }
+  });
+
+  // Handle tab changes
+  createEffect(() => {
+    const tab = activeTab();
+    if (convertedSnippets().length > 0 && zedEditorView) {
+      updateZedEditor();
+    }
+  });
+
+  createEffect(() => {
+    // If convertedSnippets changes and we have no Zed editor yet, initialize it
+    if (convertedSnippets().length > 0 && !zedEditorView && zedEditorContainer) {
+      initZedEditor();
     }
   });
 
@@ -86,18 +265,11 @@ export default function Page() {
         <h2 class="text-sm font-bold mb-2 flex items-center gap-x-2">
           <IconVSCode class="w-3.5 h-3.5" /> VSCode Snippet
         </h2>
-        <textarea
-          class={`flex-1 w-full rounded border p-4 font-mono text-xs ${
-            isDarkMode()
-              ? "bg-gray-800 border-gray-700 text-gray-200"
-              : "bg-white border-gray-300 text-gray-800"
+        <div
+          ref={vsCodeEditorContainer}
+          class={`flex-1 w-full rounded border overflow-hidden ${
+            isDarkMode() ? "bg-gray-800 border-gray-700" : "bg-white border-gray-300"
           }`}
-          value={vsCodeSnippet()}
-          onInput={(e) => {
-            const newValue = e.currentTarget.value;
-            setVSCodeSnippet(newValue);
-          }}
-          placeholder="Paste your VSCode snippet here..."
         />
       </div>
 
@@ -110,11 +282,11 @@ export default function Page() {
           fallback={
             <div class="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400">
               <div class="text-center">
-                {/* <ArrowIcon /> */}
                 <p class="text-sm">
-                  {hasError()
-                    ? "Something's wrong with your VSCode Snippet."
-                    : "Paste a VSCode Snippet to get Started"}
+                  <Switch fallback="Paste a VSCode Snippet to get Started">
+                    <Match when={!mounted()}>Initializing...</Match>
+                    <Match when={hasError()}>Something's wrong with your VSCode Snippet.</Match>
+                  </Switch>
                 </p>
               </div>
             </div>
@@ -139,15 +311,11 @@ export default function Page() {
             </For>
           </div>
           <div class="relative w-full h-full">
-            <textarea
-              class={`flex-1 w-full rounded border p-4 font-mono text-xs h-full ${
-                isDarkMode()
-                  ? "bg-gray-800 border-gray-700 text-gray-200"
-                  : "bg-white border-gray-300 text-gray-800"
+            <div
+              ref={zedEditorContainer}
+              class={`flex-1 w-full rounded border h-full ${
+                isDarkMode() ? "bg-gray-800 border-gray-700" : "bg-white border-gray-300"
               }`}
-              value={convertedSnippets()[activeTab()].content}
-              readOnly
-              placeholder="Converted snippet will appear here..."
             />
             <button
               onClick={() => copy(convertedSnippets()[activeTab()].content)}
